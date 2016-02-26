@@ -1,0 +1,38 @@
+{
+    "appKeys": {
+        "battery_hand": 2,
+        "bluetooth_vibe": 0,
+        "charge_blink": 3,
+        "hourly_vibe": 1,
+        "inverted_colors": 4,
+        "minute_hands": 5
+    },
+    "capabilities": [
+        "configurable"
+    ],
+    "companyName": "thedadams",
+    "longName": "Minimal",
+    "projectType": "native",
+    "resources": {
+        "media": [
+            {
+                "file": "fonts/FONT_MAIN_28.ttf",
+                "name": "FONT_LOWER_15",
+                "type": "font"
+            },
+            {
+                "file": "fonts/FONT_MAIN_28.ttf",
+                "name": "FONT_MAIN_40",
+                "type": "font"
+            }
+        ]
+    },
+    "sdkVersion": "2",
+    "shortName": "Minimal",
+    "uuid": "6694af84-d7a3-4245-b755-3884c34201e7",
+    "versionCode": 1,
+    "versionLabel": "2.6",
+    "watchapp": {
+        "watchface": true
+    }
+}
