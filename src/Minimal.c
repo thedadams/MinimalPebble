@@ -10,7 +10,6 @@ TextLayer     *time_layer;    // The clock
 TextLayer     *month_layer;   // The month
 TextLayer     *weather_layer; // The weather, eventually. Right now the day of the week.
 Layer         *hand_layer;    // The hand layer we use to update the hands.
-InverterLayer *inverter;      // Used to invert the colors if the user desires.
 GPoint        center;         // Point of the center of the screen
 
 const char    DAYS_OF_WEEK[7][3] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
@@ -130,8 +129,13 @@ static void hand_update(Layer *layer, GContext *ctx) {
     if(blackCharging) {
         blackCharging = false; //Set to false for next time.
     } else {
-        graphics_context_set_stroke_color(ctx, GColorWhite);
-        graphics_context_set_fill_color(ctx, GColorWhite);
+        if(options.inverted_colors == 1) {
+            graphics_context_set_stroke_color(ctx, GColorBlack);
+            graphics_context_set_fill_color(ctx, GColorBlack);
+        } else {
+            graphics_context_set_stroke_color(ctx, GColorWhite);
+            graphics_context_set_fill_color(ctx, GColorWhite);
+        }
 
         //If the user wants the battery hand, draw it.  Otherwise just fill the hour hand.
         if(options.battery_hand == 1) {
@@ -143,10 +147,10 @@ static void hand_update(Layer *layer, GContext *ctx) {
                 gpath_rotate_to(batt_hand2, rotationAngle);
                 gpath_draw_filled(ctx, batt_hand2);
             }
-            gpath_draw_outline(ctx, hour_hand);
         } else {
             gpath_draw_filled(ctx, hour_hand);
         }
+        gpath_draw_outline(ctx, hour_hand);
     }
 }
 
@@ -317,9 +321,17 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple *new_tup
     case INVERTED_COLORS_KEY:
         options.inverted_colors = new_tuple->value->uint8;
         if(options.inverted_colors == 0) {
-            layer_set_hidden(inverter_layer_get_layer(inverter), true);
+            window_set_background_color(window, GColorBlack);
+            text_layer_set_text_color(time_layer, GColorWhite);
+            text_layer_set_text_color(month_layer, GColorWhite);
+            text_layer_set_text_color(weather_layer, GColorWhite);
+            layer_mark_dirty(hand_layer);
         } else {
-            layer_set_hidden(inverter_layer_get_layer(inverter), false);
+            window_set_background_color(window, GColorWhite);
+            text_layer_set_text_color(time_layer, GColorBlack);
+            text_layer_set_text_color(month_layer, GColorBlack);
+            text_layer_set_text_color(weather_layer, GColorBlack);
+            layer_mark_dirty(hand_layer);
         }
         break;
     case MINUTE_HANDS_KEY:
@@ -331,10 +343,18 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple *new_tup
 
 // Handle the start-up of the app
 static void do_init(void) {
+    //Initialize the options struct by looking for persistent data.
+    options.bluetooth_vibe  = persist_exists(BLUETOOTH_VIBE_KEY) ? persist_read_int(BLUETOOTH_VIBE_KEY) : 1;
+    options.hourly_vibe     = persist_exists(HOURLY_VIBE_KEY) ? persist_read_int(HOURLY_VIBE_KEY) : 0;
+    options.battery_hand    = persist_exists(BATTERY_HAND_KEY) ? persist_read_int(BATTERY_HAND_KEY) : 1;
+    options.charge_blink    = persist_exists(CHARGE_BLINK_KEY) ? persist_read_int(CHARGE_BLINK_KEY) : 1;
+    options.inverted_colors = persist_exists(INVERTED_COLORS_KEY) ? persist_read_int(INVERTED_COLORS_KEY) : 0;
+    options.minute_hands    = persist_exists(MINUTE_HANDS_KEY) ? persist_read_int(MINUTE_HANDS_KEY) : 0;
+    options.storage_version = persist_exists(STORAGE_VERSION_KEY) ? persist_read_int(STORAGE_VERSION_KEY) : 2;
+
     // Create our app's base window
     window = window_create();
-    window_set_fullscreen(window, true);
-    window_set_background_color(window, GColorBlack);
+    window_set_background_color(window, options.inverted_colors == 1 ? GColorWhite : GColorBlack);
     window_stack_push(window, true);
 
     Layer *root_layer = window_get_root_layer(window);
@@ -345,15 +365,6 @@ static void do_init(void) {
     const int inbound_size  = 96;
     const int outbound_size = 96;
     app_message_open(inbound_size, outbound_size);
-
-    //Initialize the options struct by looking for persistent data.
-    options.bluetooth_vibe  = persist_exists(BLUETOOTH_VIBE_KEY) ? persist_read_int(BLUETOOTH_VIBE_KEY) : 1;
-    options.hourly_vibe     = persist_exists(HOURLY_VIBE_KEY) ? persist_read_int(HOURLY_VIBE_KEY) : 0;
-    options.battery_hand    = persist_exists(BATTERY_HAND_KEY) ? persist_read_int(BATTERY_HAND_KEY) : 1;
-    options.charge_blink    = persist_exists(CHARGE_BLINK_KEY) ? persist_read_int(CHARGE_BLINK_KEY) : 1;
-    options.inverted_colors = persist_exists(INVERTED_COLORS_KEY) ? persist_read_int(INVERTED_COLORS_KEY) : 0;
-    options.minute_hands    = persist_exists(MINUTE_HANDS_KEY) ? persist_read_int(MINUTE_HANDS_KEY) : 0;
-    options.storage_version = persist_exists(STORAGE_VERSION_KEY) ? persist_read_int(STORAGE_VERSION_KEY) : 2;
 
     // Tuplet of initial values for the options.
     Tuplet initial_values[] = {
@@ -371,21 +382,21 @@ static void do_init(void) {
     // Init the text layer used to show the minutes
     time_layer = text_layer_create(GRect((bounds.size.w - 50) / 2, (bounds.size.h - 50) / 2, 50 /* width */, 50 /* height */));
     text_layer_set_text_alignment(time_layer, GTextAlignmentCenter);
-    text_layer_set_text_color(time_layer, GColorWhite);
+    text_layer_set_text_color(time_layer, options.inverted_colors == 0 ? GColorWhite : GColorBlack);
     text_layer_set_background_color(time_layer, GColorClear);
     text_layer_set_font(time_layer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_MAIN_40)));
 
     //Init month layer to show month text.
     month_layer = text_layer_create(GRect(2, bounds.size.h - 18, 60, 18));
     text_layer_set_text_alignment(month_layer, GTextAlignmentLeft);
-    text_layer_set_text_color(month_layer, GColorWhite);
+    text_layer_set_text_color(month_layer, options.inverted_colors == 0 ? GColorWhite : GColorBlack);
     text_layer_set_background_color(month_layer, GColorClear);
     text_layer_set_font(month_layer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_LOWER_15)));
 
     // Init "weather" layer that show the day of the week.
     weather_layer = text_layer_create(GRect(bounds.size.w - 36, bounds.size.h - 18, 34, 18));
     text_layer_set_text_alignment(weather_layer, GTextAlignmentRight);
-    text_layer_set_text_color(weather_layer, GColorWhite);
+    text_layer_set_text_color(weather_layer, options.inverted_colors == 0 ? GColorWhite : GColorBlack);
     text_layer_set_background_color(weather_layer, GColorClear);
     text_layer_set_font(weather_layer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_LOWER_15)));
 
@@ -415,11 +426,6 @@ static void do_init(void) {
     layer_add_child(root_layer, text_layer_get_layer(time_layer));
     layer_add_child(root_layer, text_layer_get_layer(month_layer));
     layer_add_child(root_layer, text_layer_get_layer(weather_layer));
-
-    //Set up the inverter layer.
-    inverter = inverter_layer_create(bounds);
-    layer_add_child(root_layer, inverter_layer_get_layer(inverter));
-    layer_set_hidden(inverter_layer_get_layer(inverter), options.inverted_colors);
 
     //Mark the hand layer dirty so the hands will be drawn correctly.
     layer_mark_dirty(hand_layer);
@@ -457,7 +463,6 @@ static void do_deinit(void) {
     gpath_destroy(batt_hand);
     gpath_destroy(batt_hand2);
     layer_destroy(hand_layer);
-    inverter_layer_destroy(inverter);
     tick_timer_service_unsubscribe();
     bluetooth_connection_service_unsubscribe();
     battery_state_service_unsubscribe();

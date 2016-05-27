@@ -11,6 +11,7 @@
         "configurable"
     ],
     "companyName": "thedadams",
+    "enableMultiJS": true,
     "longName": "Minimal",
     "projectType": "native",
     "resources": {
@@ -27,10 +28,13 @@
             }
         ]
     },
-    "sdkVersion": "2",
+    "sdkVersion": "3",
     "shortName": "Minimal",
+    "targetPlatforms": [
+        "aplite",
+        "basalt"
+    ],
     "uuid": "6694af84-d7a3-4245-b755-3884c34201e7",
-    "versionCode": 1,
     "versionLabel": "2.6",
     "watchapp": {
         "watchface": true
